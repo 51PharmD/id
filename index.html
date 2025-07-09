@@ -158,7 +158,7 @@
         const studentImage = document.getElementById('studentImage');
         const studentIdInput = document.getElementById('studentIdInput');
         const updateButton = document.getElementById('updateButton');
-        const downloadCurrentImageButton = document.getElementById('downloadCurrentImageButton'); // New button
+        const downloadCurrentImageButton = document.getElementById('downloadCurrentImageButton');
         const sheetUrlInput = document.getElementById('sheetUrlInput');
         const loadSheetButton = document.getElementById('loadSheetButton');
         const studentListContainer = document.getElementById('studentListContainer');
@@ -170,8 +170,8 @@
         const windowHeader = document.getElementById('windowHeader');
         const resizeHandle = document.getElementById('resizeHandle');
         const closeWindowButton = document.getElementById('closeWindow');
-        const bulkDownloadButton = document.getElementById('bulkDownloadButton'); // Moved button
-        const bulkDownloadStatus = document.getElementById('bulkDownloadStatus'); // Moved status element
+        const bulkDownloadButton = document.getElementById('bulkDownloadButton');
+        const bulkDownloadStatus = document.getElementById('bulkDownloadStatus');
 
         // Global variable to store student data
         let studentsData = [];
@@ -184,15 +184,11 @@
          * Function to update the image source based on the input value.
          */
         function updateImage() {
-            // Get the student ID from the input field, trimming any whitespace
             const studentId = studentIdInput.value.trim();
 
-            // Check if the input is not empty
             if (studentId) {
-                // Construct the new image URL
+                // Construct the new image URL directly
                 const newImageUrl = `https://credit.mans.edu.eg/stuJCI?param0=stuImages.Images&param1=download&param2=${studentId}`;
-                
-                // Set the image's src attribute to the new URL
                 studentImage.src = newImageUrl;
             } else {
                 // If the input is empty, show a default placeholder image
@@ -220,6 +216,7 @@
             const filename = studentId ? `student_${studentId}.jpg` : 'student_image.jpg';
 
             if (imageUrl && !imageUrl.includes('placehold.co')) { // Avoid downloading placeholder
+                // Direct download from the image's current src
                 const a = document.createElement('a');
                 a.href = imageUrl;
                 a.download = filename;
@@ -228,6 +225,7 @@
                 document.body.removeChild(a);
             } else {
                 console.log("No valid image to download or it's a placeholder.");
+                displayMessageBox("No valid image to download or it's a placeholder.");
             }
         });
 
@@ -283,7 +281,7 @@
             }
 
             try {
-                const response = await fetch(sheetUrl);
+                const response = await fetch(sheetUrl); 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
@@ -337,7 +335,7 @@
         });
 
         /**
-         * Function to bulk download all student images.
+         * Function to bulk download all student images by creating and clicking links.
          */
         bulkDownloadButton.addEventListener('click', async () => {
             if (studentsData.length === 0) {
@@ -346,7 +344,7 @@
             }
 
             bulkDownloadButton.disabled = true;
-            bulkDownloadStatus.textContent = 'Starting bulk download...';
+            bulkDownloadStatus.textContent = 'Starting bulk download... (Please allow pop-ups if prompted)';
 
             for (let i = 0; i < studentsData.length; i++) {
                 const student = studentsData[i];
@@ -356,25 +354,20 @@
                 bulkDownloadStatus.textContent = `Downloading ${i + 1}/${studentsData.length}: ${student.name}...`;
 
                 try {
-                    const response = await fetch(imageUrl);
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status} for ${student.name}`);
-                    }
-                    const imageBlob = await response.blob();
-                    
+                    // Create a temporary link element
                     const a = document.createElement('a');
-                    a.href = URL.createObjectURL(imageBlob);
+                    a.href = imageUrl; // Direct URL, no fetch
                     a.download = filename;
                     document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(a.href); // Clean up the object URL
+                    a.click(); // Programmatically click the link
+                    document.body.removeChild(a); // Remove the link
 
                     // Small delay to prevent browser from blocking multiple downloads
-                    await new Promise(resolve => setTimeout(resolve, 200)); 
+                    // Browsers may still prompt for pop-ups if too many downloads are triggered quickly.
+                    await new Promise(resolve => setTimeout(resolve, 300)); // Increased delay slightly
 
                 } catch (error) {
-                    console.error(`Failed to download ${student.name} (ID: ${student.id}):`, error);
+                    console.error(`Failed to initiate download for ${student.name} (ID: ${student.id}):`, error);
                     bulkDownloadStatus.textContent = `Error downloading ${student.name}. See console for details.`;
                     // Continue to next download even if one fails
                 }
@@ -437,6 +430,37 @@
         closeWindowButton.addEventListener('click', () => {
             movableWindow.style.display = 'none'; // Hide the window
         });
+
+        // Custom message box function (replaces alert)
+        function displayMessageBox(message) {
+            // Create a simple modal/message box div
+            const messageBox = document.createElement('div');
+            messageBox.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background-color: white;
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                z-index: 1000;
+                text-align: center;
+                max-width: 300px;
+                font-family: 'Inter', sans-serif;
+                color: #333;
+            `;
+            messageBox.innerHTML = `
+                <p class="mb-4">${message}</p>
+                <button class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">OK</button>
+            `;
+            document.body.appendChild(messageBox);
+
+            // Add event listener to close the message box
+            messageBox.querySelector('button').addEventListener('click', () => {
+                document.body.removeChild(messageBox);
+            });
+        }
     </script>
 
 </body>
