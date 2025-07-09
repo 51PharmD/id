@@ -99,14 +99,9 @@
                 Update Image
             </button>
 
-            <!-- Download Current Image Button (ID Only) -->
-            <button id="downloadCurrentImageButton" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-transform transform hover:scale-105 duration-300 mb-2">
-                Download Current Image (ID Only)
-            </button>
-
-            <!-- NEW Download Current Image Button (ID + Name) -->
-            <button id="downloadCurrentImageIdNameButton" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-transform transform hover:scale-105 duration-300">
-                Download Current Image (ID + Name)
+            <!-- Download Current Image Button -->
+            <button id="downloadCurrentImageButton" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-transform transform hover:scale-105 duration-300">
+                Download Current Image
             </button>
 
         </div>
@@ -129,17 +124,17 @@
             <div id="loadingIndicator" class="hidden text-blue-500 mt-2">Loading...</div>
             <div id="errorMessage" class="hidden text-red-500 mt-2 mb-4"></div>
 
-            <!-- Original Bulk Download Button (now downloads as student_ID.jpg) -->
+            <!-- Bulk Download All Students -->
             <button id="bulkDownloadButton" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-transform transform hover:scale-105 duration-300 mb-2">
-                Bulk Download All Students (ID Only)
+                Bulk Download All Students
             </button>
             <div id="bulkDownloadStatus" class="text-sm text-gray-600 dark:text-gray-300 mb-4"></div>
 
-            <!-- NEW Bulk Download Button (downloads as ID_Name.jpg) -->
-            <button id="bulkDownloadIdNameButton" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-transform transform hover:scale-105 duration-300 mb-2">
-                Bulk Download All Students (ID + Name)
+            <!-- Bulk Download from Selected -->
+            <button id="bulkDownloadFromSelectedButton" class="w-full bg-pink-600 hover:bg-pink-700 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-transform transform hover:scale-105 duration-300 mb-2">
+                Bulk Download from Selected
             </button>
-            <div id="bulkDownloadIdNameStatus" class="text-sm text-gray-600 dark:text-gray-300"></div>
+            <div id="bulkDownloadFromSelectedStatus" class="text-sm text-gray-600 dark:text-gray-300 mt-2 mb-4"></div>
 
         </div>
 
@@ -155,6 +150,20 @@
             </button>
         </div>
         
+        <!-- Search Input and Random Pick Button -->
+        <div class="mb-4 px-2 flex items-center">
+            <input type="text" 
+                   id="studentSearchInput"
+                   placeholder="Search by name or ID..."
+                   class="flex-grow px-3 py-2 text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-1 focus:ring-blue-500 focus:outline-none transition duration-200">
+            <!-- NEW: Pick Random Student Button (compact) -->
+            <button id="pickRandomStudentButton" class="ml-2 bg-yellow-500 hover:bg-yellow-600 text-white font-bold p-2 rounded-lg shadow-md hover:shadow-lg transition-transform transform hover:scale-105 duration-300 flex-shrink-0">
+                🎲
+            </button>
+        </div>
+        <div id="randomPickStatus" class="text-sm text-gray-600 dark:text-gray-300 px-2 mb-2"></div>
+
+
         <!-- Scrollable list for student names -->
         <div id="studentListContainer" class="overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-gray-50 dark:bg-gray-700 text-left">
             <p class="text-gray-500 dark:text-gray-400">Student names will appear here after loading.</p>
@@ -169,8 +178,7 @@
         const studentImage = document.getElementById('studentImage');
         const studentIdInput = document.getElementById('studentIdInput');
         const updateButton = document.getElementById('updateButton');
-        const downloadCurrentImageButton = document.getElementById('downloadCurrentImageButton'); // Original current download
-        const downloadCurrentImageIdNameButton = document.getElementById('downloadCurrentImageIdNameButton'); // NEW current download
+        const downloadCurrentImageButton = document.getElementById('downloadCurrentImageButton');
         const sheetUrlInput = document.getElementById('sheetUrlInput');
         const loadSheetButton = document.getElementById('loadSheetButton');
         const studentListContainer = document.getElementById('studentListContainer');
@@ -182,19 +190,25 @@
         const windowHeader = document.getElementById('windowHeader');
         const resizeHandle = document.getElementById('resizeHandle');
         const closeWindowButton = document.getElementById('closeWindow');
-        
-        // Bulk Download Buttons and Statuses
-        const bulkDownloadButton = document.getElementById('bulkDownloadButton'); // Original bulk (ID Only)
-        const bulkDownloadStatus = document.getElementById('bulkDownloadStatus'); 
-        const bulkDownloadIdNameButton = document.getElementById('bulkDownloadIdNameButton'); // NEW bulk (ID + Name)
-        const bulkDownloadIdNameStatus = document.getElementById('bulkDownloadIdNameStatus'); // NEW status
+        const bulkDownloadButton = document.getElementById('bulkDownloadButton');
+        const bulkDownloadStatus = document.getElementById('bulkDownloadStatus');
+        const bulkDownloadFromSelectedButton = document.getElementById('bulkDownloadFromSelectedButton');
+        const bulkDownloadFromSelectedStatus = document.getElementById('bulkDownloadFromSelectedStatus');
+        const studentSearchInput = document.getElementById('studentSearchInput');
+        const pickRandomStudentButton = document.getElementById('pickRandomStudentButton');
+        const randomPickStatus = document.getElementById('randomPickStatus');
 
-        // Global variable to store student data
-        let studentsData = [];
+        // Global variables for download state
+        let studentsData = []; // Stores all loaded student data
+        let filteredStudentsData = []; // Stores currently filtered student data
+        let currentBulkDownloadIndex = 0;
+        let isBulkDownloading = false;
+        let currentRetryCount = 0;
+        let lastSelectedStudentIndex = 0; // To store the index of the last clicked student in the *filtered* list
 
-        // Initial image and input states
-        studentIdInput.value = ''; // Remove default student ID
-        studentIdInput.placeholder = 'e.g., 123456789'; // Update placeholder
+        const MAX_RETRIES = 3; 
+        const RETRY_DELAY_MS = 30000; 
+        const DOWNLOAD_DELAY_MS = 5000; 
 
         /**
          * Function to update the image source based on the input value.
@@ -203,11 +217,9 @@
             const studentId = studentIdInput.value.trim();
 
             if (studentId) {
-                // Construct the new image URL directly (no proxy)
                 const newImageUrl = `https://credit.mans.edu.eg/stuJCI?param0=stuImages.Images&param1=download&param2=${studentId}`;
                 studentImage.src = newImageUrl;
             } else {
-                // If the input is empty, show a default placeholder image
                 studentImage.src = 'https://placehold.co/400x400/e2e8f0/4a5568?text=Enter+ID';
                 console.log("Student ID cannot be empty.");
             }
@@ -224,14 +236,14 @@
         });
 
         /**
-         * Function to download the currently displayed image with ID Only filename.
+         * Function to download the currently displayed image.
          */
         downloadCurrentImageButton.addEventListener('click', () => {
             const imageUrl = studentImage.src;
             const studentId = studentIdInput.value.trim();
-            const filename = studentId ? `student_${studentId}.jpg` : 'student_image.jpg'; 
+            const filename = studentId ? `student_${studentId}.jpg` : 'student_image.jpg';
 
-            if (imageUrl && !imageUrl.includes('placehold.co')) { // Avoid downloading placeholder
+            if (imageUrl && !imageUrl.includes('placehold.co')) { 
                 const a = document.createElement('a');
                 a.href = imageUrl;
                 a.download = filename;
@@ -243,39 +255,6 @@
                 displayMessageBox("No valid image to download or it's a placeholder.");
             }
         });
-
-        /**
-         * Function to download the currently displayed image with ID + Name filename.
-         */
-        downloadCurrentImageIdNameButton.addEventListener('click', () => {
-            const imageUrl = studentImage.src;
-            const studentId = studentIdInput.value.trim();
-            
-            if (!studentId) {
-                console.log("No student ID entered to download image.");
-                displayMessageBox("No student ID entered to download image.");
-                return;
-            }
-
-            // Find the student name from the loaded data if available
-            const student = studentsData.find(s => s.id === studentId);
-            const studentName = student ? student.name.replace(/\s/g, '_') : 'unknown_name';
-            
-            const filename = `${studentId}_${studentName}.jpg`; 
-
-            if (imageUrl && !imageUrl.includes('placehold.co')) { // Avoid downloading placeholder
-                const a = document.createElement('a');
-                a.href = imageUrl;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-            } else {
-                console.log("No valid image to download or it's a placeholder.");
-                displayMessageBox("No valid image to download or it's a placeholder.");
-            }
-        });
-
 
         /**
          * Function to parse CSV data into an array of objects.
@@ -287,7 +266,6 @@
             const lines = csvText.trim().split('\n');
             if (lines.length === 0) return [];
 
-            // Simple header parsing, assuming fixed order for 'std id' and 'student name'
             const headers = lines[0].split(',').map(header => header.trim().toLowerCase());
             const idIndex = headers.indexOf('std id');
             const nameIndex = headers.indexOf('student name');
@@ -314,13 +292,15 @@
          */
         async function loadStudentsFromSheet() {
             const sheetUrl = sheetUrlInput.value.trim();
-            studentListContainer.innerHTML = ''; // Clear previous list
-            errorMessage.textContent = ''; // Clear previous errors
+            studentListContainer.innerHTML = ''; 
+            errorMessage.textContent = ''; 
             errorMessage.classList.add('hidden');
-            loadingIndicator.classList.remove('hidden'); // Show loading indicator
+            loadingIndicator.classList.remove('hidden'); 
             studentsData = []; // Clear previous student data
-            bulkDownloadStatus.textContent = ''; // Clear bulk download status
-            bulkDownloadIdNameStatus.textContent = ''; // Clear new bulk download status
+            filteredStudentsData = []; // Clear filtered data too
+            bulkDownloadStatus.textContent = ''; 
+            bulkDownloadFromSelectedStatus.textContent = ''; 
+            randomPickStatus.textContent = ''; // Clear random pick status
 
             if (!sheetUrl) {
                 errorMessage.textContent = 'Please enter a Google Sheet CSV URL.';
@@ -335,43 +315,69 @@
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 const csvText = await response.text();
-                studentsData = parseCSV(csvText); // Store fetched data globally
-                renderStudentList(studentsData);
-                movableWindow.style.display = 'flex'; // Show the movable window on success
+                studentsData = parseCSV(csvText); // Store all fetched data globally
+                filteredStudentsData = [...studentsData]; // Initialize filtered data with all students
+                renderStudentList(filteredStudentsData); // Render the full list initially
+                movableWindow.style.display = 'flex'; 
             } catch (error) {
                 errorMessage.textContent = `Failed to load sheet: ${error.message}. Make sure the sheet is published as CSV and the URL is correct.`;
                 errorMessage.classList.remove('hidden');
                 console.error("Error loading Google Sheet:", error);
             } finally {
-                loadingIndicator.classList.add('hidden'); // Hide loading indicator
+                loadingIndicator.classList.add('hidden'); 
             }
         }
 
         /**
          * Function to render the list of student names.
-         * @param {Array<Object>} students - An array of student objects ({id, name}).
+         * @param {Array<Object>} studentsToRender - The array of student objects to display.
          */
-        function renderStudentList(students) {
-            studentListContainer.innerHTML = ''; // Clear existing list
+        function renderStudentList(studentsToRender) {
+            studentListContainer.innerHTML = ''; 
 
-            if (students.length === 0) {
+            if (studentsToRender.length === 0) {
                 studentListContainer.innerHTML = '<p class="text-gray-500 dark:text-gray-400">No students found or CSV is empty.</p>';
                 return;
             }
 
-            students.forEach(student => {
+            studentsToRender.forEach((student, index) => { 
                 const studentDiv = document.createElement('button');
                 studentDiv.className = 'block w-full text-left px-4 py-2 my-1 rounded-md bg-gray-100 dark:bg-gray-600 hover:bg-blue-100 dark:hover:bg-blue-700 text-gray-800 dark:text-gray-200 transition duration-150 ease-in-out cursor-pointer';
                 studentDiv.textContent = student.name;
-                studentDiv.dataset.studentId = student.id; // Store student ID in a data attribute
+                studentDiv.dataset.studentId = student.id; 
+                studentDiv.dataset.studentIndex = index; // Store index within the *filtered* list
 
                 studentDiv.addEventListener('click', () => {
                     studentIdInput.value = studentDiv.dataset.studentId;
-                    updateImage(); // Update the image with the selected student's ID
+                    updateImage(); 
+                    lastSelectedStudentIndex = parseInt(studentDiv.dataset.studentIndex); 
+                    // Highlight the selected student in the list
+                    Array.from(studentListContainer.children).forEach(btn => {
+                        btn.classList.remove('bg-blue-200', 'dark:bg-blue-800');
+                    });
+                    studentDiv.classList.add('bg-blue-200', 'dark:bg-blue-800');
                 });
                 studentListContainer.appendChild(studentDiv);
             });
         }
+
+        // Function to filter students based on search input
+        function filterStudents() {
+            const searchTerm = studentSearchInput.value.trim().toLowerCase();
+            if (searchTerm === '') {
+                filteredStudentsData = [...studentsData]; // If empty, show all
+            } else {
+                filteredStudentsData = studentsData.filter(student => 
+                    student.name.toLowerCase().includes(searchTerm) || 
+                    student.id.includes(searchTerm)
+                );
+            }
+            renderStudentList(filteredStudentsData); // Re-render with filtered data
+        }
+
+        // Add event listener to the new search input
+        studentSearchInput.addEventListener('input', filterStudents);
+
 
         // Add event listener to the new load sheet button
         loadSheetButton.addEventListener('click', loadStudentsFromSheet);
@@ -384,65 +390,141 @@
         });
 
         /**
-         * Generic function to handle bulk download with a specified filename format.
-         * @param {Array<Object>} students - Array of student data.
-         * @param {function(Object): string} filenameFormatter - Function to generate filename from student object.
+         * Generic function to handle bulk download by creating and clicking links.
+         * This version includes basic retry logic, but full detection of server redirects
+         * and empty files is not possible without `fetch` and a CORS proxy.
+         * @param {Array<Object>} studentsToDownload - Array of student data to download (can be filtered).
+         * @param {number} startIndex - The index to start the download from within studentsToDownload.
          * @param {HTMLElement} statusElement - Element to display download status.
-         * @param {HTMLElement} buttonElement - The button triggering the download.
+         * @param {HTMLElement} buttonToDisable - The button triggering the download.
          */
-        async function performBulkDownload(students, filenameFormatter, statusElement, buttonElement) {
-            if (students.length === 0) {
+        async function startBulkDownload(studentsToDownload, startIndex, statusElement, buttonToDisable) {
+            if (isBulkDownloading) {
+                statusElement.textContent = 'A bulk download is already in progress.';
+                return;
+            }
+            if (studentsToDownload.length === 0) {
                 statusElement.textContent = 'No students loaded to download.';
                 return;
             }
-
-            buttonElement.disabled = true;
-            statusElement.textContent = 'Starting bulk download... (Please allow pop-ups if prompted)';
-
-            for (let i = 0; i < students.length; i++) {
-                const student = students[i];
-                const imageUrl = `https://credit.mans.edu.eg/stuJCI?param0=stuImages.Images&param1=download&param2=${student.id}`;
-                const filename = filenameFormatter(student);
-
-                statusElement.textContent = `Downloading ${i + 1}/${students.length}: ${student.name}...`;
-
-                try {
-                    const a = document.createElement('a');
-                    a.href = imageUrl;
-                    a.download = filename;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-
-                    await new Promise(resolve => setTimeout(resolve, 1000)); // 1-second delay
-
-                } catch (error) {
-                    console.error(`Failed to initiate download for ${student.name} (ID: ${student.id}):`, error);
-                    statusElement.textContent = `Error downloading ${student.name}. See console for details.`;
-                }
+            if (startIndex >= studentsToDownload.length || startIndex < 0) {
+                displayMessageBox("Invalid starting index for bulk download.");
+                return;
             }
-            statusElement.textContent = `Bulk download complete for ${students.length} students.`;
-            buttonElement.disabled = false;
+
+            isBulkDownloading = true;
+            currentBulkDownloadIndex = startIndex; // Set the starting index
+            currentRetryCount = 0; // Reset retry count for a new bulk download session
+
+            // Disable all bulk download buttons
+            bulkDownloadButton.disabled = true;
+            bulkDownloadFromSelectedButton.disabled = true;
+            pickRandomStudentButton.disabled = true; // Disable random pick during bulk download
+
+            statusElement.textContent = `Starting bulk download from ${startIndex + 1}/${studentsToDownload.length}... (Please allow pop-ups if prompted)`;
+            
+            await processNextBulkDownloadItem(studentsToDownload, statusElement, buttonToDisable);
         }
 
-        // Event listener for the original bulk download button (ID Only)
+        async function processNextBulkDownloadItem(studentsToDownload, statusElement, buttonToDisable) {
+            if (!isBulkDownloading || currentBulkDownloadIndex >= studentsToDownload.length) {
+                statusElement.textContent = `Bulk download complete for ${studentsToDownload.length} students.`;
+                isBulkDownloading = false;
+                currentBulkDownloadIndex = 0; // Reset for next time
+                currentRetryCount = 0;
+                // Re-enable all bulk download buttons
+                bulkDownloadButton.disabled = false;
+                bulkDownloadFromSelectedButton.disabled = false;
+                pickRandomStudentButton.disabled = false; // Re-enable random pick
+                return;
+            }
+
+            const student = studentsToDownload[currentBulkDownloadIndex];
+            const imageUrl = `https://credit.mans.edu.eg/stuJCI?param0=stuImages.Images&param1=download&param2=${student.id}`;
+            // Filename format consistent with your original bulk download
+            const filename = `student_${student.id}_${student.name.replace(/\s/g, '_')}.jpg`;
+
+            statusElement.textContent = `Downloading ${currentBulkDownloadIndex + 1}/${studentsToDownload.length}: ${student.name}...`;
+
+            try {
+                // Create a temporary link element
+                const a = document.createElement('a');
+                a.href = imageUrl; // Direct URL, no fetch
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click(); // Programmatically click the link
+                document.body.removeChild(a); // Remove the link
+
+                // We cannot reliably detect redirects or empty files here without fetch.
+                // The delay is primarily to space out requests and potentially avoid server limits.
+                await new Promise(resolve => setTimeout(resolve, DOWNLOAD_DELAY_MS)); 
+
+                currentRetryCount = 0; // Reset retry count on "apparent" success
+                currentBulkDownloadIndex++; // Move to the next image
+                setTimeout(() => processNextBulkDownloadItem(studentsToDownload, statusElement, buttonToDisable), 100); // Small internal delay
+            } catch (error) {
+                // This catch block will primarily handle client-side errors, not server-side issues like redirects
+                console.error(`Failed to initiate download for ${student.name} (ID: ${student.id}):`, error);
+                statusElement.textContent = `Error initiating download for ${student.name}. See console.`;
+                // Without fetch, we can't reliably retry or detect server-side issues.
+                // We'll just move to the next item to prevent infinite loops on a problematic URL.
+                currentBulkDownloadIndex++; 
+                setTimeout(() => processNextBulkDownloadItem(studentsToDownload, statusElement, buttonToDisable), DOWNLOAD_DELAY_MS);
+            }
+        }
+
+        // Event listener for "Bulk Download All Students" (starts from index 0 of the *full* list)
         bulkDownloadButton.addEventListener('click', () => {
-            performBulkDownload(
-                studentsData,
-                (student) => `student_${student.id}.jpg`, // Original naming convention
+            startBulkDownload(
+                studentsData, // Use the full list
+                0, // Start from the beginning
                 bulkDownloadStatus,
                 bulkDownloadButton
             );
         });
 
-        // Event listener for the NEW bulk download button (ID + Name)
-        bulkDownloadIdNameButton.addEventListener('click', () => {
-            performBulkDownload(
-                studentsData,
-                (student) => `${student.id}_${student.name.replace(/\s/g, '_')}.jpg`, // New naming convention
-                bulkDownloadIdNameStatus,
-                bulkDownloadIdNameButton
+        // Event listener for "Bulk Download from Selected"
+        bulkDownloadFromSelectedButton.addEventListener('click', () => {
+            if (filteredStudentsData.length === 0) { // Use filtered data for this check
+                displayMessageBox("Please load students first.");
+                return;
+            }
+            if (lastSelectedStudentIndex === null || lastSelectedStudentIndex < 0 || lastSelectedStudentIndex >= filteredStudentsData.length) {
+                displayMessageBox("Please select a student from the list first to start from a specific point.");
+                return;
+            }
+            startBulkDownload(
+                filteredStudentsData, // Use the currently filtered list
+                lastSelectedStudentIndex, // Start from the last selected index within the filtered list
+                bulkDownloadFromSelectedStatus,
+                bulkDownloadFromSelectedButton
             );
+        });
+
+        // NEW: Event listener for "Pick Random Student" button
+        pickRandomStudentButton.addEventListener('click', () => {
+            if (filteredStudentsData.length === 0) {
+                randomPickStatus.textContent = 'Please load students first.';
+                return;
+            }
+
+            const randomIndex = Math.floor(Math.random() * filteredStudentsData.length);
+            const randomStudent = filteredStudentsData[randomIndex];
+
+            studentIdInput.value = randomStudent.id;
+            updateImage();
+            randomPickStatus.textContent = `Picked: ${randomStudent.name} (ID: ${randomStudent.id})`;
+
+            // Highlight the randomly selected student in the list
+            Array.from(studentListContainer.children).forEach((btn, index) => {
+                btn.classList.remove('bg-blue-200', 'dark:bg-blue-800');
+                // Find the button corresponding to the random student's original index in the *filtered* list
+                if (index === randomIndex) {
+                    btn.classList.add('bg-blue-200', 'dark:bg-blue-800');
+                    btn.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); // Scroll to it
+                }
+            });
+            lastSelectedStudentIndex = randomIndex; // Update last selected index for "from selected" button
         });
 
 
