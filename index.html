@@ -99,9 +99,14 @@
                 Update Image
             </button>
 
-            <!-- Download Current Image Button -->
-            <button id="downloadCurrentImageButton" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-transform transform hover:scale-105 duration-300">
-                Download Current Image
+            <!-- Download Current Image Button (ID Only) -->
+            <button id="downloadCurrentImageButton" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-transform transform hover:scale-105 duration-300 mb-2">
+                Download Current Image (ID Only)
+            </button>
+
+            <!-- NEW Download Current Image Button (ID + Name) -->
+            <button id="downloadCurrentImageIdNameButton" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-transform transform hover:scale-105 duration-300">
+                Download Current Image (ID + Name)
             </button>
 
         </div>
@@ -124,11 +129,17 @@
             <div id="loadingIndicator" class="hidden text-blue-500 mt-2">Loading...</div>
             <div id="errorMessage" class="hidden text-red-500 mt-2 mb-4"></div>
 
-            <!-- Bulk Download Button moved here -->
+            <!-- Original Bulk Download Button (now downloads as student_ID.jpg) -->
             <button id="bulkDownloadButton" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-transform transform hover:scale-105 duration-300 mb-2">
-                Bulk Download All Students
+                Bulk Download All Students (ID Only)
             </button>
-            <div id="bulkDownloadStatus" class="text-sm text-gray-600 dark:text-gray-300"></div>
+            <div id="bulkDownloadStatus" class="text-sm text-gray-600 dark:text-gray-300 mb-4"></div>
+
+            <!-- NEW Bulk Download Button (downloads as ID_Name.jpg) -->
+            <button id="bulkDownloadIdNameButton" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-transform transform hover:scale-105 duration-300 mb-2">
+                Bulk Download All Students (ID + Name)
+            </button>
+            <div id="bulkDownloadIdNameStatus" class="text-sm text-gray-600 dark:text-gray-300"></div>
 
         </div>
 
@@ -158,7 +169,8 @@
         const studentImage = document.getElementById('studentImage');
         const studentIdInput = document.getElementById('studentIdInput');
         const updateButton = document.getElementById('updateButton');
-        const downloadCurrentImageButton = document.getElementById('downloadCurrentImageButton');
+        const downloadCurrentImageButton = document.getElementById('downloadCurrentImageButton'); // Original current download
+        const downloadCurrentImageIdNameButton = document.getElementById('downloadCurrentImageIdNameButton'); // NEW current download
         const sheetUrlInput = document.getElementById('sheetUrlInput');
         const loadSheetButton = document.getElementById('loadSheetButton');
         const studentListContainer = document.getElementById('studentListContainer');
@@ -170,8 +182,12 @@
         const windowHeader = document.getElementById('windowHeader');
         const resizeHandle = document.getElementById('resizeHandle');
         const closeWindowButton = document.getElementById('closeWindow');
-        const bulkDownloadButton = document.getElementById('bulkDownloadButton');
-        const bulkDownloadStatus = document.getElementById('bulkDownloadStatus');
+        
+        // Bulk Download Buttons and Statuses
+        const bulkDownloadButton = document.getElementById('bulkDownloadButton'); // Original bulk (ID Only)
+        const bulkDownloadStatus = document.getElementById('bulkDownloadStatus'); 
+        const bulkDownloadIdNameButton = document.getElementById('bulkDownloadIdNameButton'); // NEW bulk (ID + Name)
+        const bulkDownloadIdNameStatus = document.getElementById('bulkDownloadIdNameStatus'); // NEW status
 
         // Global variable to store student data
         let studentsData = [];
@@ -208,15 +224,14 @@
         });
 
         /**
-         * Function to download the currently displayed image.
+         * Function to download the currently displayed image with ID Only filename.
          */
         downloadCurrentImageButton.addEventListener('click', () => {
             const imageUrl = studentImage.src;
             const studentId = studentIdInput.value.trim();
-            const filename = studentId ? `student_${studentId}.jpg` : 'student_image.jpg';
+            const filename = studentId ? `student_${studentId}.jpg` : 'student_image.jpg'; 
 
             if (imageUrl && !imageUrl.includes('placehold.co')) { // Avoid downloading placeholder
-                // Direct download from the image's current src
                 const a = document.createElement('a');
                 a.href = imageUrl;
                 a.download = filename;
@@ -228,6 +243,39 @@
                 displayMessageBox("No valid image to download or it's a placeholder.");
             }
         });
+
+        /**
+         * Function to download the currently displayed image with ID + Name filename.
+         */
+        downloadCurrentImageIdNameButton.addEventListener('click', () => {
+            const imageUrl = studentImage.src;
+            const studentId = studentIdInput.value.trim();
+            
+            if (!studentId) {
+                console.log("No student ID entered to download image.");
+                displayMessageBox("No student ID entered to download image.");
+                return;
+            }
+
+            // Find the student name from the loaded data if available
+            const student = studentsData.find(s => s.id === studentId);
+            const studentName = student ? student.name.replace(/\s/g, '_') : 'unknown_name';
+            
+            const filename = `${studentId}_${studentName}.jpg`; 
+
+            if (imageUrl && !imageUrl.includes('placehold.co')) { // Avoid downloading placeholder
+                const a = document.createElement('a');
+                a.href = imageUrl;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            } else {
+                console.log("No valid image to download or it's a placeholder.");
+                displayMessageBox("No valid image to download or it's a placeholder.");
+            }
+        });
+
 
         /**
          * Function to parse CSV data into an array of objects.
@@ -272,6 +320,7 @@
             loadingIndicator.classList.remove('hidden'); // Show loading indicator
             studentsData = []; // Clear previous student data
             bulkDownloadStatus.textContent = ''; // Clear bulk download status
+            bulkDownloadIdNameStatus.textContent = ''; // Clear new bulk download status
 
             if (!sheetUrl) {
                 errorMessage.textContent = 'Please enter a Google Sheet CSV URL.';
@@ -335,44 +384,65 @@
         });
 
         /**
-         * Function to bulk download all student images by creating and clicking links.
+         * Generic function to handle bulk download with a specified filename format.
+         * @param {Array<Object>} students - Array of student data.
+         * @param {function(Object): string} filenameFormatter - Function to generate filename from student object.
+         * @param {HTMLElement} statusElement - Element to display download status.
+         * @param {HTMLElement} buttonElement - The button triggering the download.
          */
-        bulkDownloadButton.addEventListener('click', async () => {
-            if (studentsData.length === 0) {
-                bulkDownloadStatus.textContent = 'No students loaded to download.';
+        async function performBulkDownload(students, filenameFormatter, statusElement, buttonElement) {
+            if (students.length === 0) {
+                statusElement.textContent = 'No students loaded to download.';
                 return;
             }
 
-            bulkDownloadButton.disabled = true;
-            bulkDownloadStatus.textContent = 'Starting bulk download... (Please allow pop-ups if prompted)';
+            buttonElement.disabled = true;
+            statusElement.textContent = 'Starting bulk download... (Please allow pop-ups if prompted)';
 
-            for (let i = 0; i < studentsData.length; i++) {
-                const student = studentsData[i];
+            for (let i = 0; i < students.length; i++) {
+                const student = students[i];
                 const imageUrl = `https://credit.mans.edu.eg/stuJCI?param0=stuImages.Images&param1=download&param2=${student.id}`;
-                const filename = `student_${student.id}_${student.name.replace(/\s/g, '_')}.jpg`;
+                const filename = filenameFormatter(student);
 
-                bulkDownloadStatus.textContent = `Downloading ${i + 1}/${studentsData.length}: ${student.name}...`;
+                statusElement.textContent = `Downloading ${i + 1}/${students.length}: ${student.name}...`;
 
                 try {
-                    // Create a temporary link element
                     const a = document.createElement('a');
-                    a.href = imageUrl; // Direct URL, no fetch
+                    a.href = imageUrl;
                     a.download = filename;
                     document.body.appendChild(a);
-                    a.click(); // Programmatically click the link
-                    document.body.removeChild(a); // Remove the link
+                    a.click();
+                    document.body.removeChild(a);
 
-                    // Increased delay to 1000ms (1 second)
-                    await new Promise(resolve => setTimeout(resolve, 1000)); 
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // 1-second delay
 
                 } catch (error) {
                     console.error(`Failed to initiate download for ${student.name} (ID: ${student.id}):`, error);
-                    bulkDownloadStatus.textContent = `Error downloading ${student.name}. See console for details.`;
-                    // Continue to next download even if one fails
+                    statusElement.textContent = `Error downloading ${student.name}. See console for details.`;
                 }
             }
-            bulkDownloadStatus.textContent = `Bulk download complete for ${studentsData.length} students.`;
-            bulkDownloadButton.disabled = false;
+            statusElement.textContent = `Bulk download complete for ${students.length} students.`;
+            buttonElement.disabled = false;
+        }
+
+        // Event listener for the original bulk download button (ID Only)
+        bulkDownloadButton.addEventListener('click', () => {
+            performBulkDownload(
+                studentsData,
+                (student) => `student_${student.id}.jpg`, // Original naming convention
+                bulkDownloadStatus,
+                bulkDownloadButton
+            );
+        });
+
+        // Event listener for the NEW bulk download button (ID + Name)
+        bulkDownloadIdNameButton.addEventListener('click', () => {
+            performBulkDownload(
+                studentsData,
+                (student) => `${student.id}_${student.name.replace(/\s/g, '_')}.jpg`, // New naming convention
+                bulkDownloadIdNameStatus,
+                bulkDownloadIdNameButton
+            );
         });
 
 
