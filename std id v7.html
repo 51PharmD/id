@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Image Viewer</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Use the Inter font family */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Custom styles for the movable window and resize handle */
+        #movableWindow {
+            /* Default position and size */
+            top: 50px;
+            right: 50px;
+            width: 350px;
+            height: 450px; /* Adjusted height to better fit content */
+            display: flex; /* Kept as flex for column layout */
+            flex-direction: column; /* Allows content inside to stack vertically */
+        }
+
+        #studentListContainer {
+            flex-grow: 1; /* Allows the list to take up available space */
+            min-height: 50px; /* Ensure it has a minimum height even if empty */
+        }
+
+        #resizeHandle {
+            /* Position the handle at the bottom-right corner */
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 16px; /* Size of the handle */
+            height: 16px;
+            background-color: #3B82F6; /* Blue-600 */
+            cursor: nwse-resize; /* Diagonal resize cursor */
+            border-bottom-right-radius: 0.75rem; /* rounded-xl */
+        }
+
+        /* Hide scrollbar for a cleaner look, but allow scrolling functionality */
+        /* For Webkit browsers (Chrome, Safari) */
+        #studentListContainer::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #studentListContainer::-webkit-scrollbar-thumb {
+            background-color: #cbd5e0; /* gray-300 */
+            border-radius: 4px;
+        }
+
+        #studentListContainer::-webkit-scrollbar-track {
+            background-color: #f7fafc; /* gray-100 */
+        }
+
+        /* For Firefox */
+        #studentListContainer {
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e0 #f7fafc;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900">
+
+    <!-- Main container to center content -->
+    <div class="min-h-screen flex flex-col items-center justify-center p-4">
+
+        <!-- Existing Student Image Viewer Section -->
+        <div class="w-full max-w-full bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 text-center mb-8">
+            
+            <h1 class="text-2xl font-bold text-gray-800 dark:text-white mb-4">Student Image Viewer</h1>
+            
+            <!-- Image display area -->
+            <div class="overflow-x-auto mb-6">
+                <img id="studentImage" 
+                     src="https://placehold.co/400x400/e2e8f0/4a5568?text=Enter+ID" 
+                     alt="Student Image" 
+                     class="max-w-none h-auto block mx-auto" 
+                     onerror="this.onerror=null;this.src='https://placehold.co/400x400/e2e8f0/4a5568?text=Not+Found';">
+            </div>
+
+            <!-- Input for Student ID -->
+            <div class="mb-4">
+                <label for="studentIdInput" class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">Enter Student ID</label>
+                <input type="text" 
+                       id="studentIdInput"
+                       placeholder="e.g., 123456789"
+                       class="w-full px-4 py-2 text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition duration-200">
+            </div>
+
+            <!-- Update Button -->
+            <button id="updateButton" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-transform transform hover:scale-105 duration-300 mb-2">
+                Update Image
+            </button>
+
+            <!-- Download Current Image Button -->
+            <button id="downloadCurrentImageButton" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-transform transform hover:scale-105 duration-300">
+                Download Current Image
+            </button>
+
+        </div>
+
+        <!-- Google Sheet Integration Section (remains at the bottom) -->
+        <div class="w-full max-w-full bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 text-center">
+            <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-4">Load Students from Google Sheet</h2>
+            
+            <div class="mb-4">
+                <label for="sheetUrlInput" class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">Google Sheet CSV URL</label>
+                <input type="url" 
+                       id="sheetUrlInput"
+                       placeholder="e.g., https://docs.google.com/spreadsheets/d/.../pub?output=csv"
+                       class="w-full px-4 py-2 text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition duration-200">
+            </div>
+
+            <button id="loadSheetButton" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-transform transform hover:scale-105 duration-300 mb-6">
+                Load Students
+            </button>
+            <div id="loadingIndicator" class="hidden text-blue-500 mt-2">Loading...</div>
+            <div id="errorMessage" class="hidden text-red-500 mt-2 mb-4"></div>
+
+            <!-- Bulk Download Button moved here -->
+            <button id="bulkDownloadButton" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-transform transform hover:scale-105 duration-300 mb-2">
+                Bulk Download All Students
+            </button>
+            <div id="bulkDownloadStatus" class="text-sm text-gray-600 dark:text-gray-300"></div>
+
+        </div>
+
+    </div>
+
+    <!-- Movable and Resizable Student List Window (initially hidden) -->
+    <div id="movableWindow" class="fixed bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-4 z-50 hidden">
+        <!-- Header for dragging -->
+        <div id="windowHeader" class="cursor-move bg-blue-600 dark:bg-blue-700 text-white font-bold py-2 px-4 rounded-t-lg -mx-4 -mt-4 mb-4 flex justify-between items-center">
+            <h2 class="text-lg">Student List</h2>
+            <button id="closeWindow" class="text-white hover:text-gray-200 focus:outline-none text-2xl leading-none">
+                &times;
+            </button>
+        </div>
+        
+        <!-- Scrollable list for student names -->
+        <div id="studentListContainer" class="overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-gray-50 dark:bg-gray-700 text-left">
+            <p class="text-gray-500 dark:text-gray-400">Student names will appear here after loading.</p>
+        </div>
+
+        <!-- Resize handle (bottom-right corner) -->
+        <div id="resizeHandle"></div>
+    </div>
+
+    <script>
+        // Get references to the HTML elements
+        const studentImage = document.getElementById('studentImage');
+        const studentIdInput = document.getElementById('studentIdInput');
+        const updateButton = document.getElementById('updateButton');
+        const downloadCurrentImageButton = document.getElementById('downloadCurrentImageButton'); // New button
+        const sheetUrlInput = document.getElementById('sheetUrlInput');
+        const loadSheetButton = document.getElementById('loadSheetButton');
+        const studentListContainer = document.getElementById('studentListContainer');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const errorMessage = document.getElementById('errorMessage');
+
+        // Movable window elements
+        const movableWindow = document.getElementById('movableWindow');
+        const windowHeader = document.getElementById('windowHeader');
+        const resizeHandle = document.getElementById('resizeHandle');
+        const closeWindowButton = document.getElementById('closeWindow');
+        const bulkDownloadButton = document.getElementById('bulkDownloadButton'); // Moved button
+        const bulkDownloadStatus = document.getElementById('bulkDownloadStatus'); // Moved status element
+
+        // Global variable to store student data
+        let studentsData = [];
+
+        // Initial image and input states
+        studentIdInput.value = ''; // Remove default student ID
+        studentIdInput.placeholder = 'e.g., 123456789'; // Update placeholder
+
+        /**
+         * Function to update the image source based on the input value.
+         */
+        function updateImage() {
+            // Get the student ID from the input field, trimming any whitespace
+            const studentId = studentIdInput.value.trim();
+
+            // Check if the input is not empty
+            if (studentId) {
+                // Construct the new image URL
+                const newImageUrl = `https://credit.mans.edu.eg/stuJCI?param0=stuImages.Images&param1=download&param2=${studentId}`;
+                
+                // Set the image's src attribute to the new URL
+                studentImage.src = newImageUrl;
+            } else {
+                // If the input is empty, show a default placeholder image
+                studentImage.src = 'https://placehold.co/400x400/e2e8f0/4a5568?text=Enter+ID';
+                console.log("Student ID cannot be empty.");
+            }
+        }
+
+        // Add a click event listener to the existing update button
+        updateButton.addEventListener('click', updateImage);
+
+        // Optional: Allow pressing 'Enter' in the input field to trigger the update
+        studentIdInput.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                updateImage();
+            }
+        });
+
+        /**
+         * Function to download the currently displayed image.
+         */
+        downloadCurrentImageButton.addEventListener('click', () => {
+            const imageUrl = studentImage.src;
+            const studentId = studentIdInput.value.trim();
+            const filename = studentId ? `student_${studentId}.jpg` : 'student_image.jpg';
+
+            if (imageUrl && !imageUrl.includes('placehold.co')) { // Avoid downloading placeholder
+                const a = document.createElement('a');
+                a.href = imageUrl;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            } else {
+                console.log("No valid image to download or it's a placeholder.");
+            }
+        });
+
+        /**
+         * Function to parse CSV data into an array of objects.
+         * Assumes the first row is headers: 'std id' and 'student name'.
+         * @param {string} csvText - The raw CSV string.
+         * @returns {Array<Object>} An array of student objects.
+         */
+        function parseCSV(csvText) {
+            const lines = csvText.trim().split('\n');
+            if (lines.length === 0) return [];
+
+            // Simple header parsing, assuming fixed order for 'std id' and 'student name'
+            const headers = lines[0].split(',').map(header => header.trim().toLowerCase());
+            const idIndex = headers.indexOf('std id');
+            const nameIndex = headers.indexOf('student name');
+
+            if (idIndex === -1 || nameIndex === -1) {
+                throw new Error("CSV must contain 'std id' and 'student name' columns.");
+            }
+
+            const students = [];
+            for (let i = 1; i < lines.length; i++) {
+                const parts = lines[i].split(',');
+                if (parts.length > Math.max(idIndex, nameIndex)) {
+                    students.push({
+                        id: parts[idIndex].trim(),
+                        name: parts[nameIndex].trim()
+                    });
+                }
+            }
+            return students;
+        }
+
+        /**
+         * Function to load student data from the provided Google Sheet URL.
+         */
+        async function loadStudentsFromSheet() {
+            const sheetUrl = sheetUrlInput.value.trim();
+            studentListContainer.innerHTML = ''; // Clear previous list
+            errorMessage.textContent = ''; // Clear previous errors
+            errorMessage.classList.add('hidden');
+            loadingIndicator.classList.remove('hidden'); // Show loading indicator
+            studentsData = []; // Clear previous student data
+            bulkDownloadStatus.textContent = ''; // Clear bulk download status
+
+            if (!sheetUrl) {
+                errorMessage.textContent = 'Please enter a Google Sheet CSV URL.';
+                errorMessage.classList.remove('hidden');
+                loadingIndicator.classList.add('hidden');
+                return;
+            }
+
+            try {
+                const response = await fetch(sheetUrl);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const csvText = await response.text();
+                studentsData = parseCSV(csvText); // Store fetched data globally
+                renderStudentList(studentsData);
+                movableWindow.style.display = 'flex'; // Show the movable window on success
+            } catch (error) {
+                errorMessage.textContent = `Failed to load sheet: ${error.message}. Make sure the sheet is published as CSV and the URL is correct.`;
+                errorMessage.classList.remove('hidden');
+                console.error("Error loading Google Sheet:", error);
+            } finally {
+                loadingIndicator.classList.add('hidden'); // Hide loading indicator
+            }
+        }
+
+        /**
+         * Function to render the list of student names.
+         * @param {Array<Object>} students - An array of student objects ({id, name}).
+         */
+        function renderStudentList(students) {
+            studentListContainer.innerHTML = ''; // Clear existing list
+
+            if (students.length === 0) {
+                studentListContainer.innerHTML = '<p class="text-gray-500 dark:text-gray-400">No students found or CSV is empty.</p>';
+                return;
+            }
+
+            students.forEach(student => {
+                const studentDiv = document.createElement('button');
+                studentDiv.className = 'block w-full text-left px-4 py-2 my-1 rounded-md bg-gray-100 dark:bg-gray-600 hover:bg-blue-100 dark:hover:bg-blue-700 text-gray-800 dark:text-gray-200 transition duration-150 ease-in-out cursor-pointer';
+                studentDiv.textContent = student.name;
+                studentDiv.dataset.studentId = student.id; // Store student ID in a data attribute
+
+                studentDiv.addEventListener('click', () => {
+                    studentIdInput.value = studentDiv.dataset.studentId;
+                    updateImage(); // Update the image with the selected student's ID
+                });
+                studentListContainer.appendChild(studentDiv);
+            });
+        }
+
+        // Add event listener to the new load sheet button
+        loadSheetButton.addEventListener('click', loadStudentsFromSheet);
+
+        // Optional: Allow pressing 'Enter' in the sheet URL input field to trigger the load
+        sheetUrlInput.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                loadStudentsFromSheet();
+            }
+        });
+
+        /**
+         * Function to bulk download all student images.
+         */
+        bulkDownloadButton.addEventListener('click', async () => {
+            if (studentsData.length === 0) {
+                bulkDownloadStatus.textContent = 'No students loaded to download.';
+                return;
+            }
+
+            bulkDownloadButton.disabled = true;
+            bulkDownloadStatus.textContent = 'Starting bulk download...';
+
+            for (let i = 0; i < studentsData.length; i++) {
+                const student = studentsData[i];
+                const imageUrl = `https://credit.mans.edu.eg/stuJCI?param0=stuImages.Images&param1=download&param2=${student.id}`;
+                const filename = `student_${student.id}_${student.name.replace(/\s/g, '_')}.jpg`;
+
+                bulkDownloadStatus.textContent = `Downloading ${i + 1}/${studentsData.length}: ${student.name}...`;
+
+                try {
+                    const response = await fetch(imageUrl);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status} for ${student.name}`);
+                    }
+                    const imageBlob = await response.blob();
+                    
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(imageBlob);
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(a.href); // Clean up the object URL
+
+                    // Small delay to prevent browser from blocking multiple downloads
+                    await new Promise(resolve => setTimeout(resolve, 200)); 
+
+                } catch (error) {
+                    console.error(`Failed to download ${student.name} (ID: ${student.id}):`, error);
+                    bulkDownloadStatus.textContent = `Error downloading ${student.name}. See console for details.`;
+                    // Continue to next download even if one fails
+                }
+            }
+            bulkDownloadStatus.textContent = `Bulk download complete for ${studentsData.length} students.`;
+            bulkDownloadButton.disabled = false;
+        });
+
+
+        // --- Movable Window Logic ---
+        let isDragging = false;
+        let isResizing = false;
+        let initialX, initialY, initialLeft, initialTop, initialWidth, initialHeight;
+
+        // Dragging
+        windowHeader.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            initialX = e.clientX;
+            initialY = e.clientY;
+            initialLeft = movableWindow.offsetLeft;
+            initialTop = movableWindow.offsetTop;
+            movableWindow.style.cursor = 'grabbing';
+            e.preventDefault(); // Prevent text selection
+        });
+
+        // Resizing
+        resizeHandle.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            initialX = e.clientX;
+            initialY = e.clientY;
+            initialWidth = movableWindow.offsetWidth;
+            initialHeight = movableWindow.offsetHeight;
+            movableWindow.style.cursor = 'nwse-resize';
+            e.preventDefault(); // Prevent text selection
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const dx = e.clientX - initialX;
+                const dy = e.clientY - initialY;
+                movableWindow.style.left = `${initialLeft + dx}px`;
+                movableWindow.style.top = `${initialTop + dy}px`;
+            } else if (isResizing) {
+                const dx = e.clientX - initialX;
+                const dy = e.clientY - initialY;
+                const newWidth = Math.max(200, initialWidth + dx); // Minimum width of 200px
+                const newHeight = Math.max(250, initialHeight + dy); // Minimum height of 250px
+                movableWindow.style.width = `${newWidth}px`;
+                movableWindow.style.height = `${newHeight}px`;
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+            isResizing = false;
+            movableWindow.style.cursor = 'default';
+        });
+
+        // Close window button
+        closeWindowButton.addEventListener('click', () => {
+            movableWindow.style.display = 'none'; // Hide the window
+        });
+    </script>
+
+</body>
+</html>
